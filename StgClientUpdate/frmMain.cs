@@ -68,47 +68,23 @@ namespace StgClientUpdater
             return string.Format("v{0:yy.MM.dd}.{1:00000}", buildDateTime, ver.Revision);
         }
 
-        private void MakeProject(string project, bool copyfile = true)
+        private void MakeProject(string project)
         {
-            /*
-            XmlDocument xdoc = new XmlDocument();
-            xdoc.Load(updateXml);
+            var item = Global.getItem(project);
+            if (item == null) return;
 
-            XmlNode xnode = xdoc.SelectSingleNode("//update[@appID='" + project + "']");
-            if (xnode == null)
-            {
-                MessageBox.Show("Cannot make project " + project);
-                return;
-            }
-
-            string projPath = xnode["projPath"].InnerText;
-            string apkFile = Path.Combine(projPath, "build/app/outputs/apk/release/app-release.apk");
-            if (!File.Exists(apkFile))
-            {
-                MessageBox.Show("Cannot make project " + project);
-                return;
-            }
-
-            this.remoteVer = this.localVer;
-            lbRemote.Text = this.remoteVer;
+            string ver = GetFlutterVersion(item.projPath, false);
+            item.version = ver;
+            lbRemote.Text = ver;
+            string apkFile = Path.Combine(item.projPath, "build/app/outputs/apk/release/app-release.apk");
             string dstFile1 = string.Format("{0}/{1}.apk", project, project);
-            string dstFile2 = string.Format("{0}/{1}_{2}.apk", project, project, remoteVer);
-            if (copyfile)
-            {
-                File.Copy(apkFile, dstFile1, true);
-                File.Copy(apkFile, dstFile2, true);
-            }
-            devUrlpath = serverUri + dstFile2.Replace('\\', '/');
-            devSha256 = CalcSha256(apkFile);
+            string dstFile2 = string.Format("{0}/{1}_{2}.apk", project, project, ver);
+            item.url = serverUri + dstFile2.Replace('\\', '/');
+            item.sha256 = CalcSha256(apkFile);
+            item.description = tbDescript.Text;
 
-            // Update XML
-            xnode["remoteVersion"].InnerText = remoteVer;
-            xnode["url"].InnerText = devUrlpath;
-            xnode["description"].InnerText = tbDescript.Text;
-            xnode["sha256"].InnerText = devSha256;
-
-            xdoc.Save(updateXml);
-            */
+            string jsonString = JsonConvert.SerializeObject(Global.listItems, Newtonsoft.Json.Formatting.Indented);
+            File.WriteAllText(updateJson, jsonString);
         }
 
         private string CalcSha256(string fname)
@@ -120,79 +96,6 @@ namespace StgClientUpdater
                 sha256 = BitConverter.ToString(hash).Replace("-", String.Empty).ToLower();
             }
             return sha256;
-        }
-
-        private async void btnSubmit_Click(object sender, EventArgs e)
-        {
-            string project = lbProject.Text;
-            if (project != "")
-            {
-                MakeProject(project);
-                SummitProject();
-                await UpdateFirebaseRemote();
-            }
-        }
-
-        private async Task<int> UpdateFirebaseRemote()
-        {
-            return 0;
-        }
-
-        private void SummitProject(bool pause=true)
-        {
-            // string comment = tbDescript.Text;
-            string comment = "";
-            string argument = "/C choice /C Y /N /D Y /T 4 & git add -A & git commit {0} & git pull & git push";
-            if (pause) argument += " & pause";
-
-            if (tbDescript.Lines.Length == 0)
-            {
-                comment = string.Format("-m \"{0}_{1}\"", lbProject.Text, lbRemote.Text);
-            }
-            else
-            {
-                foreach (string line in tbDescript.Lines)
-                {
-                    comment += string.Format("-m \"{0}\" ", line);
-                }
-            }
-
-            ProcessStartInfo Info = new ProcessStartInfo();
-            Info.Arguments = String.Format(argument, comment);
-            // Info.WindowStyle = ProcessWindowStyle.Hidden;
-            Info.CreateNoWindow = true;
-            Info.FileName = "cmd.exe";
-            Process.Start(Info);
-            // MessageBox.Show(string.Format("Project {0} has been submit", lbProject.Text));
-        }
-
-        private void BuildProject(string project, bool pause = true)
-        {
-            /*
-            XmlDocument xdoc = new XmlDocument();
-            xdoc.Load(updateXml);
-
-            XmlNode xnode = xdoc.SelectSingleNode("//update[@appID='" + project + "']");
-            if (xnode == null)
-            {
-                MessageBox.Show("Cannot build project " + project);
-                return;
-            }
-
-            string projPath = xnode["projPath"].InnerText;
-            localVer = GetFlutterVersion(projPath, true);
-            lbLocal.Text = localVer;
-
-            string cmd = string.Format("/C echo BUILD Version={0} & cd \"{1}\" & flutter build apk",
-                this.localVer, projPath);
-            if (pause) cmd += " & pause";
-
-            ProcessStartInfo Info = new ProcessStartInfo();
-            Info.Arguments = cmd;
-            Info.FileName = "cmd.exe";
-            Info.CreateNoWindow = true;
-            Process.Start(Info);
-            */
         }
 
         private String GetFlutterVersion(string projPath, bool inc = false)
@@ -243,7 +146,7 @@ namespace StgClientUpdater
             return strVer;
         }
 
-        private void BuildAndSubmit(string project)
+        private void Build(string project)
         {
             var item = Global.getItem(project);
 
@@ -253,6 +156,7 @@ namespace StgClientUpdater
             string cmd = string.Format("/C echo BUILD Version={0} & cd \"{1}\" & flutter build apk & cd \"{2}\"",
                 localVer, item.projPath, curdir);
 
+            Directory.CreateDirectory(project);
             string apkFile = Path.Combine(item.projPath, "build\\app\\outputs\\apk\\release\\app-release.apk");
             apkFile = apkFile.Replace('/', '\\');
             string dstFile1 = string.Format("{0}\\{1}.apk", project, project);
@@ -275,12 +179,37 @@ namespace StgClientUpdater
             String submit = string.Format("choice /C Y /N /D Y /T 4 & git add -A & git commit {0} & git pull & git push & pause", comment);
 
             ProcessStartInfo Info = new ProcessStartInfo();
-            Info.Arguments = cmd + " & " + copyfile + " & " + submit;
+            Info.Arguments = cmd + " & " + copyfile;
             Info.FileName = "cmd.exe";
             Info.CreateNoWindow = true;
             Process.Start(Info);
         }
 
+        private void Submit(string project)
+        {
+            var item = Global.getItem(project);
+            if (item == null) return;
+
+            string comment = "";
+            if (tbDescript.Lines.Length == 0)
+            {
+                comment = string.Format("-m \"{0}_{1}\"", lbProject.Text, lbRemote.Text);
+            }
+            else
+            {
+                foreach (string line in tbDescript.Lines)
+                {
+                    comment += string.Format("-m \"{0}\" ", line);
+                }
+            }
+            String submit = string.Format("choice /C Y /N /D Y /T 4 & git add -A & git commit {0} & git pull & git push & pause", comment);
+
+            ProcessStartInfo Info = new ProcessStartInfo();
+            Info.Arguments = submit;
+            Info.FileName = "cmd.exe";
+            Info.CreateNoWindow = true;
+            Process.Start(Info);
+        }
 
         private void btnNew_Click(object sender, EventArgs e)
         {
@@ -293,66 +222,17 @@ namespace StgClientUpdater
             }
         }
 
-        private void btnBuild_Click(object sender, EventArgs e)
-        {
-            string project = lbProject.Text;
-            if (project != "")
-            {
-                BuildProject(project);
-            }
-        }
-
-        private async void btnRelease_Click(object sender, EventArgs e)
-        {
-            string project = lbProject.Text;
-            if (project != "")
-            {
-                await MakeRelease();
-                UpdateXml(project);
-            }
-        }
-
         private async void btnAllInOne_Click(object sender, EventArgs e)
         {
             string project = lbProject.Text;
             if (project != "")
             {
-                BuildAndSubmit(project);
-                /*
+                Build(project);
                 await Task.Delay(10000);
-                MakeProject(project, false);
-                await UpdateFirebaseRemote();
-                await MakeRelease();
-                UpdateXml(project, false);
-                */
+                MakeProject(project);
+                await Task.Delay(10000);
+                Submit(project);
             }
-        }
-
-        private void UpdateXml(string project, bool dlg = true)
-        {
-            /*
-            XmlDocument xdoc = new XmlDocument();
-            xdoc.Load(updateXml);
-
-            XmlNode xnode = xdoc.SelectSingleNode("//update[@appID='" + project + "']");
-            if (xnode != null)
-            {
-                releaseVer = remoteVer;
-                lbRelease.Text = releaseVer;
-                xnode["releaseVersion"].InnerText = releaseVer;
-                xdoc.Save(updateXml);
-            }
-
-            if (dlg)
-            {
-                MessageBox.Show(string.Format("Release {0} has been published.", releaseVer));
-            }
-            */
-        }
-
-        private async Task<int> MakeRelease()
-        {
-            return 0;
         }
     }
 }

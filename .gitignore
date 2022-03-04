@@ -1,0 +1,9 @@
+*.dll
+*.so
+*.dylib
+*.xml
+*.pdb
+bin/
+obj/
+.vs/
+packages/

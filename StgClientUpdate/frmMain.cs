@@ -68,17 +68,14 @@ namespace StgClientUpdater
             return string.Format("v{0:yy.MM.dd}.{1:00000}", buildDateTime, ver.Revision);
         }
 
-        private void MakeProject(string project)
+        private void MakeProject(ClsProjItem item)
         {
-            var item = Global.getItem(project);
-            if (item == null) return;
-
-            string ver = GetFlutterVersion(item.projPath, false);
-            item.version = ver;
-            lbRemote.Text = ver;
+            string project = item.appID;
+            lbLocal.Text = item.version;
+            lbRemote.Text = item.version;
             string apkFile = Path.Combine(item.projPath, "build/app/outputs/apk/release/app-release.apk");
             string dstFile1 = string.Format("{0}/{1}.apk", project, project);
-            string dstFile2 = string.Format("{0}/{1}_{2}.apk", project, project, ver);
+            string dstFile2 = string.Format("{0}/{1}_{2}.apk", project, project, item.version);
             item.url = serverUri + dstFile2.Replace('\\', '/');
             item.sha256 = CalcSha256(apkFile);
             item.description = tbDescript.Text;
@@ -146,66 +143,27 @@ namespace StgClientUpdater
             return strVer;
         }
 
-        private void Build(string project)
+        private void BuildAndSubmit(ClsProjItem item)
         {
-            var item = Global.getItem(project);
-
-            string localVer = GetFlutterVersion(item.projPath, true);
-
+            lbLocal.Text = item.version;
+            lbRemote.Text = item.version;
             string curdir = Directory.GetCurrentDirectory();
-            string cmd = string.Format("/C echo BUILD Version={0} & cd \"{1}\" & flutter build apk & cd \"{2}\"",
-                localVer, item.projPath, curdir);
 
-            Directory.CreateDirectory(project);
+            string cmd = string.Format("/C echo BUILD Version={0} & cd \"{1}\" & flutter build apk & cd \"{2}\"",
+                item.version, item.projPath, curdir);
+
             string apkFile = Path.Combine(item.projPath, "build\\app\\outputs\\apk\\release\\app-release.apk");
             apkFile = apkFile.Replace('/', '\\');
-            string dstFile1 = string.Format("{0}\\{1}.apk", project, project);
-            string dstFile2 = string.Format("{0}\\{1}_{2}.apk", project, project, localVer);
-            string copyfile = string.Format("copy /y {0} {1} & copy /y {0} {2} ", 
+            string dstFile1 = string.Format("{0}\\{1}.apk", item.appID, item.appID);
+            string dstFile2 = string.Format("{0}\\{1}_{2}.apk", item.appID, item.appID, item.version);
+            string copyfile = string.Format("copy /y {0} {1} & copy /y {0} {2} ",
                 apkFile, dstFile1, dstFile2);
 
-            string comment = "";
-            if (tbDescript.Lines.Length == 0)
-            {
-                comment = string.Format("-m \"{0}_{1}\"", lbProject.Text, lbRemote.Text);
-            }
-            else
-            {
-                foreach (string line in tbDescript.Lines)
-                {
-                    comment += string.Format("-m \"{0}\" ", line);
-                }
-            }
+            string comment = string.Format("-m \"{0}_{1}\"", lbProject.Text, lbRemote.Text);
             String submit = string.Format("choice /C Y /N /D Y /T 4 & git add -A & git commit {0} & git pull & git push & pause", comment);
 
             ProcessStartInfo Info = new ProcessStartInfo();
-            Info.Arguments = cmd + " & " + copyfile;
-            Info.FileName = "cmd.exe";
-            Info.CreateNoWindow = true;
-            Process.Start(Info);
-        }
-
-        private void Submit(string project)
-        {
-            var item = Global.getItem(project);
-            if (item == null) return;
-
-            string comment = "";
-            if (tbDescript.Lines.Length == 0)
-            {
-                comment = string.Format("-m \"{0}_{1}\"", lbProject.Text, lbRemote.Text);
-            }
-            else
-            {
-                foreach (string line in tbDescript.Lines)
-                {
-                    comment += string.Format("-m \"{0}\" ", line);
-                }
-            }
-            String submit = string.Format("choice /C Y /N /D Y /T 4 & git add -A & git commit {0} & git pull & git push & pause", comment);
-
-            ProcessStartInfo Info = new ProcessStartInfo();
-            Info.Arguments = submit;
+            Info.Arguments = cmd + " & " + copyfile + " & " + submit;
             Info.FileName = "cmd.exe";
             Info.CreateNoWindow = true;
             Process.Start(Info);
@@ -222,16 +180,20 @@ namespace StgClientUpdater
             }
         }
 
-        private async void btnAllInOne_Click(object sender, EventArgs e)
+        private void btnAllInOne_Click(object sender, EventArgs e)
         {
             string project = lbProject.Text;
             if (project != "")
             {
-                Build(project);
-                await Task.Delay(10000);
-                MakeProject(project);
-                await Task.Delay(10000);
-                Submit(project);
+                var item = Global.getItem(project);
+                if (item == null) return;
+
+                item.version = GetFlutterVersion(item.projPath, true);
+                MakeProject(item);
+                BuildAndSubmit(item);
+                // await Task.Delay(10000);
+                // await Task.Delay(10000);
+                // Submit(project);
             }
         }
     }

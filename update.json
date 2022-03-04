@@ -1,10 +1,10 @@
 [
   {
     "appID": "StgClient",
-    "version": "1.0.0.7",
-    "url": "https://github.com/sums2022/StgClientUpdate/raw/main/StgClient/StgClient_1.0.0.7.apk",
+    "version": "1.0.0.12",
+    "url": "https://github.com/sums2022/StgClientUpdate/raw/main/StgClient/StgClient_1.0.0.12.apk",
     "projPath": "../stgclient/",
-    "description": "1.0.0.6:\r\ninit\r\n",
-    "sha256": "36aa7d7fc74e8271012b8be9dc7efff6a849c999249c1f41fb25e959d5563240"
+    "description": "",
+    "sha256": "007f041e897089c7b697b0739e9d4c3f15e24366f41db4e707b65be1271a3a61"
   }
 ]
